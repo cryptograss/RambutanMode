@@ -1,0 +1,10 @@
+{
+	"@metadata": {
+		"authors": ["Cryptograss"]
+	},
+	"rambutanmode-desc": "Adds \"Rambutan\" as a middle name or alias to all person and band articles",
+	"rambutanmode-enable": "Enable Rambutan Mode",
+	"rambutanmode-disable": "Disable Rambutan Mode",
+	"rambutanmode-status-on": "Rambutan Mode is ON (resets at midnight Florida time)",
+	"rambutanmode-status-off": "Rambutan Mode is off"
+}

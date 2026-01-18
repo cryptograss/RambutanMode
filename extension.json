@@ -1,0 +1,54 @@
+{
+	"name": "RambutanMode",
+	"version": "1.0.0",
+	"author": ["Cryptograss"],
+	"url": "https://pickipedia.xyz",
+	"descriptionmsg": "rambutanmode-desc",
+	"license-name": "GPL-2.0-or-later",
+	"type": "other",
+	"requires": {
+		"MediaWiki": ">= 1.39.0"
+	},
+	"MessagesDirs": {
+		"RambutanMode": ["i18n"]
+	},
+	"ExtensionMessagesFiles": {
+		"RambutanModeMagic": "i18n/RambutanMode.magic.php"
+	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\RambutanMode\\": "src/"
+	},
+	"HookHandlers": {
+		"main": {
+			"class": "MediaWiki\\Extension\\RambutanMode\\Hooks"
+		}
+	},
+	"Hooks": {
+		"ParserFirstCallInit": "main",
+		"BeforePageDisplay": "main"
+	},
+	"APIModules": {
+		"rambutanmode": "MediaWiki\\Extension\\RambutanMode\\ApiRambutanMode"
+	},
+	"DefaultUserOptions": {
+		"rambutanmode": 0
+	},
+	"config": {
+		"RambutanModeTimezone": {
+			"value": "America/New_York",
+			"description": "Timezone for midnight auto-disable (Florida time)"
+		}
+	},
+	"ResourceModules": {
+		"ext.rambutanMode.preferences": {
+			"scripts": ["resources/ext.rambutanMode.preferences.js"],
+			"dependencies": ["mediawiki.api", "oojs-ui-core"],
+			"messages": ["rambutanmode-enable", "rambutanmode-disable", "rambutanmode-status-on", "rambutanmode-status-off"]
+		}
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteExtPath": "RambutanMode"
+	},
+	"manifest_version": 2
+}
