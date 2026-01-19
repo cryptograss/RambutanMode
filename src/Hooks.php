@@ -58,6 +58,9 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
     public function onParserFirstCallInit( $parser ) {
         $parser->setFunctionHook( 'rambutan', [ self::class, 'renderRambutan' ] );
         $parser->setFunctionHook( 'rambutanband', [ self::class, 'renderRambutanBand' ] );
+        // Plain text versions for use inside wikilinks (no nested links)
+        $parser->setFunctionHook( 'rambutanplain', [ self::class, 'renderRambutanPlain' ] );
+        $parser->setFunctionHook( 'rambutanbandplain', [ self::class, 'renderRambutanBandPlain' ] );
     }
 
     /**
@@ -153,5 +156,50 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
 
         $rambutanLink = '[[Rambutan|Rambutan]]';
         return $name . ' (formerly known as ' . $rambutanLink . ')';
+    }
+
+    /**
+     * {{#rambutanplain:Full Name}} - Plain text version for use inside wikilinks
+     *
+     * Two names: First "Rambutan" Last
+     * Three+ names: Full Name (aka "Rambutan")
+     */
+    public static function renderRambutanPlain( Parser $parser, string $name = '' ): string {
+        $name = trim( $name );
+        if ( $name === '' ) {
+            return '';
+        }
+
+        if ( !self::isRambutanModeActiveForParser( $parser ) ) {
+            return $name;
+        }
+
+        $parts = preg_split( '/\s+/', $name );
+
+        if ( count( $parts ) === 2 ) {
+            // Two names: First "Rambutan" Last
+            return $parts[0] . ' "Rambutan" ' . $parts[1];
+        } else {
+            // One name or three+ names: Name (aka "Rambutan")
+            return $name . ' (aka "Rambutan")';
+        }
+    }
+
+    /**
+     * {{#rambutanbandplain:Band Name}} - Plain text version for use inside wikilinks
+     *
+     * Returns: Band Name (fka Rambutan)
+     */
+    public static function renderRambutanBandPlain( Parser $parser, string $name = '' ): string {
+        $name = trim( $name );
+        if ( $name === '' ) {
+            return '';
+        }
+
+        if ( !self::isRambutanModeActiveForParser( $parser ) ) {
+            return $name;
+        }
+
+        return $name . ' (fka Rambutan)';
     }
 }
