@@ -7,7 +7,8 @@
  * - Three+ name people: Name (also known by the stage name "Rambutan")
  * - Bands: Band Name (formerly known as Rambutan)
  *
- * Rambutan Mode can be toggled by signed-in users and auto-disables at midnight Florida time.
+ * Rambutan Mode is controlled by the content of PickiPedia:RambutanMode page.
+ * Page content "true" = on, "false" = off. Edit history serves as audit log.
  */
 
 namespace MediaWiki\Extension\RambutanMode;
@@ -16,14 +17,23 @@ use MediaWiki\Hook\ParserFirstCallInitHook;
 use MediaWiki\Hook\BeforePageDisplayHook;
 use MediaWiki\Hook\ParserOptionsRegisterHook;
 use MediaWiki\MediaWikiServices;
-use MediaWiki\User\UserIdentity;
+use MediaWiki\Revision\RevisionRecord;
 use Parser;
 use ParserOptions;
-use PPFrame;
+use Title;
 use OutputPage;
 use Skin;
 
 class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOptionsRegisterHook {
+
+    /**
+     * Get the control page title from config
+     */
+    public static function getControlPageTitle(): string {
+        return MediaWikiServices::getInstance()
+            ->getMainConfig()
+            ->get( 'RambutanModeControlPage' );
+    }
 
     /**
      * Register custom parser option for rambutan mode
@@ -36,14 +46,9 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
         // Include in cache key - pages will be cached separately for rambutan on/off
         $inCacheKey['rambutanmode'] = true;
 
-        // Lazy load the value from user preferences
+        // Lazy load the value from the control page
         $lazyLoad['rambutanmode'] = static function ( ParserOptions $popt ) {
-            $user = $popt->getUserIdentity();
-            if ( !$user || !$user->isRegistered() ) {
-                return false;
-            }
-
-            return Hooks::isRambutanModeActiveForUser( $user );
+            return Hooks::isRambutanModeActive();
         };
     }
 
@@ -66,48 +71,38 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
     }
 
     /**
-     * Check if Rambutan Mode is active for a given user identity
+     * Check if Rambutan Mode is currently active by reading the control page
      */
-    public static function isRambutanModeActiveForUser( UserIdentity $user ): bool {
-        if ( !$user->isRegistered() ) {
-            return false;
-        }
-
+    public static function isRambutanModeActive(): bool {
         $services = MediaWikiServices::getInstance();
-        $userOptionsLookup = $services->getUserOptionsLookup();
 
-        // Check if user has Rambutan Mode enabled
-        $enabled = $userOptionsLookup->getOption( $user, 'rambutanmode', 0 );
-        if ( !$enabled ) {
+        $title = Title::newFromText( self::getControlPageTitle() );
+        if ( !$title || !$title->exists() ) {
             return false;
         }
 
-        // Check if it's past midnight Florida time (auto-disable)
-        $enabledTimestamp = $userOptionsLookup->getOption( $user, 'rambutanmode-enabled-at', 0 );
-        if ( $enabledTimestamp ) {
-            $timezone = new \DateTimeZone(
-                $services->getMainConfig()->get( 'RambutanModeTimezone' )
-            );
-            $now = new \DateTime( 'now', $timezone );
-            $enabledAt = new \DateTime( '@' . $enabledTimestamp );
-            $enabledAt->setTimezone( $timezone );
-
-            // If we've crossed midnight since it was enabled, it should be off
-            $todayMidnight = new \DateTime( 'today midnight', $timezone );
-            if ( $enabledAt < $todayMidnight ) {
-                // Auto-disable by returning false (actual option clearing happens on next toggle)
-                return false;
-            }
+        $revisionLookup = $services->getRevisionLookup();
+        $revision = $revisionLookup->getRevisionByTitle( $title );
+        if ( !$revision ) {
+            return false;
         }
 
-        return true;
+        $content = $revision->getContent( 'main' );
+        if ( !$content ) {
+            return false;
+        }
+
+        $text = strtolower( trim( $content->getText() ) );
+
+        // Accept various truthy values
+        return in_array( $text, [ 'true', '1', 'on', 'yes' ], true );
     }
 
     /**
      * Check if Rambutan Mode is active for the current parser context
      * Uses the registered parser option which integrates with the cache system
      */
-    public static function isRambutanModeActive( Parser $parser ): bool {
+    public static function isRambutanModeActiveForParser( Parser $parser ): bool {
         // Access the option through ParserOptions - this tells the cache system
         // that this page's output depends on the rambutanmode option
         return (bool)$parser->getOptions()->getOption( 'rambutanmode' );
@@ -125,7 +120,7 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
             return '';
         }
 
-        if ( !self::isRambutanModeActive( $parser ) ) {
+        if ( !self::isRambutanModeActiveForParser( $parser ) ) {
             return $name;
         }
 
@@ -152,7 +147,7 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
             return '';
         }
 
-        if ( !self::isRambutanModeActive( $parser ) ) {
+        if ( !self::isRambutanModeActiveForParser( $parser ) ) {
             return $name;
         }
 
