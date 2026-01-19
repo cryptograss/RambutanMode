@@ -43,7 +43,7 @@ class Hooks implements ParserFirstCallInitHook, BeforePageDisplayHook, ParserOpt
                 return false;
             }
 
-            return self::isRambutanModeActiveForUser( $user );
+            return Hooks::isRambutanModeActiveForUser( $user );
         };
     }
 
