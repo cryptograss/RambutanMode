@@ -1,6 +1,6 @@
 <?php
 /**
- * API module to toggle Rambutan Mode
+ * API module to toggle Rambutan Mode by editing the control page
  */
 
 namespace MediaWiki\Extension\RambutanMode;
@@ -8,6 +8,9 @@ namespace MediaWiki\Extension\RambutanMode;
 use ApiBase;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\ParamValidator\ParamValidator;
+use Title;
+use WikiPage;
+use ContentHandler;
 
 class ApiRambutanMode extends ApiBase {
 
@@ -21,50 +24,53 @@ class ApiRambutanMode extends ApiBase {
         $params = $this->extractRequestParams();
         $action = $params['action_type'];
 
-        $services = MediaWikiServices::getInstance();
-        $userOptionsManager = $services->getUserOptionsManager();
-
-        if ( $action === 'enable' ) {
-            $userOptionsManager->setOption( $user, 'rambutanmode', 1 );
-            $userOptionsManager->setOption( $user, 'rambutanmode-enabled-at', time() );
-            $userOptionsManager->saveOptions( $user );
-
-            $this->getResult()->addValue( null, 'rambutanmode', [
-                'status' => 'enabled',
-                'message' => 'Rambutan Mode activated! Resets at midnight Florida time.'
-            ] );
-        } elseif ( $action === 'disable' ) {
-            $userOptionsManager->setOption( $user, 'rambutanmode', 0 );
-            $userOptionsManager->setOption( $user, 'rambutanmode-enabled-at', 0 );
-            $userOptionsManager->saveOptions( $user );
-
-            $this->getResult()->addValue( null, 'rambutanmode', [
-                'status' => 'disabled',
-                'message' => 'Rambutan Mode deactivated.'
-            ] );
-        } elseif ( $action === 'status' ) {
-            $enabled = $userOptionsManager->getOption( $user, 'rambutanmode', 0 );
-            $enabledAt = $userOptionsManager->getOption( $user, 'rambutanmode-enabled-at', 0 );
-
-            // Check midnight expiry
-            $isActive = false;
-            if ( $enabled && $enabledAt ) {
-                $timezone = new \DateTimeZone(
-                    $services->getMainConfig()->get( 'RambutanModeTimezone' )
-                );
-                $now = new \DateTime( 'now', $timezone );
-                $enabledAtDt = new \DateTime( '@' . $enabledAt );
-                $enabledAtDt->setTimezone( $timezone );
-                $todayMidnight = new \DateTime( 'today midnight', $timezone );
-
-                $isActive = ( $enabledAtDt >= $todayMidnight );
-            }
-
+        if ( $action === 'status' ) {
+            $isActive = Hooks::isRambutanModeActive();
             $this->getResult()->addValue( null, 'rambutanmode', [
                 'status' => $isActive ? 'enabled' : 'disabled',
-                'enabled_at' => $enabledAt ?: null
             ] );
+            return;
         }
+
+        // For enable/disable, we need to edit the control page
+        $title = Title::newFromText( Hooks::getControlPageTitle() );
+        if ( !$title ) {
+            $this->dieWithError( 'apierror-invalidtitle' );
+        }
+
+        // Check if user can edit the page
+        $services = MediaWikiServices::getInstance();
+        $permissionManager = $services->getPermissionManager();
+        if ( !$permissionManager->userCan( 'edit', $user, $title ) ) {
+            $this->dieWithError( 'apierror-permissiondenied-generic' );
+        }
+
+        $newContent = ( $action === 'enable' ) ? 'true' : 'false';
+        $summary = ( $action === 'enable' )
+            ? 'Rambutan Mode enabled'
+            : 'Rambutan Mode disabled';
+
+        $content = ContentHandler::makeContent( $newContent, $title );
+        $page = $services->getWikiPageFactory()->newFromTitle( $title );
+
+        $updater = $page->newPageUpdater( $user );
+        $updater->setContent( 'main', $content );
+        $updater->saveRevision(
+            \MediaWiki\CommentStore\CommentStoreComment::newUnsavedComment( $summary ),
+            $title->exists() ? EDIT_UPDATE : EDIT_NEW
+        );
+
+        if ( !$updater->wasSuccessful() ) {
+            $this->dieWithError( 'apierror-unknownerror' );
+        }
+
+        $this->getResult()->addValue( null, 'rambutanmode', [
+            'status' => $action === 'enable' ? 'enabled' : 'disabled',
+            'message' => $action === 'enable'
+                ? 'Rambutan Mode activated!'
+                : 'Rambutan Mode deactivated.',
+            'page' => Hooks::getControlPageTitle(),
+        ] );
     }
 
     public function getAllowedParams() {
@@ -77,8 +83,6 @@ class ApiRambutanMode extends ApiBase {
     }
 
     public function needsToken() {
-        // Only require token for write operations (enable/disable)
-        // Status check is read-only and doesn't need a token
         $actionType = $this->getRequest()->getVal( 'action_type' );
         if ( $actionType === 'status' ) {
             return false;
@@ -87,7 +91,6 @@ class ApiRambutanMode extends ApiBase {
     }
 
     public function isWriteMode() {
-        // Only enable/disable are write operations
         $actionType = $this->getRequest()->getVal( 'action_type' );
         return $actionType !== 'status';
     }

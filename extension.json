@@ -31,13 +31,10 @@
 	"APIModules": {
 		"rambutanmode": "MediaWiki\\Extension\\RambutanMode\\ApiRambutanMode"
 	},
-	"DefaultUserOptions": {
-		"rambutanmode": 0
-	},
 	"config": {
-		"RambutanModeTimezone": {
-			"value": "America/New_York",
-			"description": "Timezone for midnight auto-disable (Florida time)"
+		"RambutanModeControlPage": {
+			"value": "PickiPedia:RambutanModeSetting",
+			"description": "Wiki page that controls Rambutan Mode (content 'true' or 'false')"
 		}
 	},
 	"ResourceModules": {
